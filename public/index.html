@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calc App</title>
+</head>
+
+<body>
+    <div style="width: 300px">
+        <div class="m-3">
+            <label for="inputA">A</label>
+            <input type="number" name="inputA" id="inputA">
+        </div>
+        <div class="m-3">
+            <label for="inputB">B</label>
+            <input type="number" name="inputB" id="inputB">
+        </div>
+        <div id="tool" class="m-3" onclick="setState()"></div>
+        <div class="m-3">
+            <label for="result">Result</label>
+            <span id="result">0</span>
+        </div>
+        <div style="float: right;">
+            <input type="checkbox" id="cloudsave" name="cloudsave" onclick="onCloudSave(event)">
+            <label for="cloudsave"> Cloud save</label>
+            <div>
+                <button onclick="isCloudSave ? load(event) : document.getElementById('file-input').click();">Load</button>
+                <button onclick="save()">Save</button>
+                <input id="file-input" type="file" name="name" style="display: none;" oninput="load(event)"
+                    onclick="this.value=null;" />
+            </div>
+        </div>
+    </div>
+</body>
+<script>
+    const tool = document.getElementById('tool');
+    const tools = [
+        {
+            sign: '+',
+            label: '+',
+            id: 'plus'
+        }, {
+            sign: '-',
+            label: '-',
+            id: 'min',
+        }, {
+            sign: '*',
+            label: 'x',
+            id: 'mul',
+
+        }, {
+            sign: '/',
+            label: '/',
+            id: 'div',
+        }, {
+            sign: '^',
+            label: 'pow',
+            id: 'pow',
+        },
+    ]
+    let a = 0;
+    let b = 0;
+    let operator = '+';
+    let result = 0;
+    let isCloudSave = false;
+    let uid;
+    const apiUrl = 'https://us-central1-calcapp-interview-test.cloudfunctions.net/api';
+    tools.forEach(el => {
+        const btntool = document.createElement('button');
+        btntool.id = el.id;
+        btntool.textContent = el.label;
+        btntool.addEventListener('click', function () {
+            a = document.getElementById('inputA').value | 0;
+            b = document.getElementById('inputB').value | 0;
+            operator = el.sign;
+            result = el.sign === '^' ? Math.pow(a, b) : eval(`${a}${operator}${b}`);
+            document.getElementById('result').innerHTML = result;
+        }, false)
+        tool.appendChild(btntool)
+    });
+    async function save() {
+        setState()
+        if (isCloudSave) {
+            (async () => {
+                const rawResponse = await fetch(apiUrl + '/save', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ a, b, operator, result, uid })
+                });
+                const content = await rawResponse.json();
+                alert('Save on cloud success')
+            })();
+        } else {
+            try {
+                const fs = require('fs');
+                await fs.mkdirSync(`${__dirname}/save/`, { recursive: true });
+                await fs.writeFileSync(`${__dirname}/save/data.json`, JSON.stringify({ a, b, operator, result }))
+                alert('Save success')
+            } catch (err) {
+                if (err.toString().search('require')) {
+                    alert('Cloud save is off. Please run on electron')
+                } else {
+                    alert(err)
+                }
+            }
+        }
+    }
+    function setState() {
+        tools.forEach(el => {
+            if (el.sign === operator) {
+                document.getElementById(el.id).style.backgroundColor = 'red';
+                document.getElementById(el.id).click()
+            } else {
+                document.getElementById(el.id).style.backgroundColor = '';
+            }
+        })
+    }
+    function load(a) {
+        if (isCloudSave) {
+            (async () => {
+                const rawResponse = await fetch(apiUrl + '/load/' + uid, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                });
+                const content = await rawResponse.json();
+                document.getElementById('inputA').value = content.a
+                document.getElementById('inputB').value = content.b
+                document.getElementById('result').innerHTML = content.result;
+                operator = content.operator
+                setState()
+            })();
+        } else {
+            const reader = new FileReader();
+            reader.onload = () => {
+                let readedFile = {};
+                try {
+                    readedFile = JSON.parse(reader.result)
+                } catch (err) {
+                    alert('Not JSON file')
+                }
+                document.getElementById('inputA').value = readedFile.a
+                document.getElementById('inputB').value = readedFile.b
+                document.getElementById('result').innerHTML = readedFile.result;
+                operator = readedFile.operator
+                setState()
+            };
+            reader.readAsBinaryString(a.target.files[0]);
+        }
+    }
+    function onCloudSave(event) {
+        isCloudSave = document.getElementById('cloudsave').checked;
+        firebaseLogin();
+    }
+    
+</script>
+<script src="https://www.gstatic.com/firebasejs/8.2.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.2.1/firebase-analytics.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.2.1/firebase-auth.js"></script>
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyBSWet5h8o6EFLCkkmPM_im0rxEEr1San4",
+        authDomain: "calcapp-interview-test.firebaseapp.com",
+        projectId: "calcapp-interview-test",
+        storageBucket: "calcapp-interview-test.appspot.com",
+        messagingSenderId: "790681740917",
+        appId: "1:790681740917:web:8af17614c7fad0763cfa3c",
+        measurementId: "G-1JBV6S8YNP"
+    };
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    firebase.analytics();
+    firebaseLogin();
+    function firebaseLogin() {
+        firebase.auth().signInAnonymously()
+            .then()
+            .catch((error) => {
+                const errorCode = error.code;
+                const errorMessage = error.message;
+                console.log(errorMessage);
+            });
+    }
+    firebase.auth().onAuthStateChanged((user) => {
+        if (user) {
+            uid = user.uid;
+            console.log(uid);
+        }
+    });
+
+</script>
+<style>
+    .m-3 {
+        margin: 10px;
+    }
+</style>
+
+</html>
