@@ -66,7 +66,7 @@
     let result = 0;
     let isCloudSave = false;
     let uid;
-    const apiUrl = 'https://us-central1-calcapp-interview-test.cloudfunctions.net/api';
+    const apiUrl = location.host ? `${location.origin}/api` : 'https://us-central1-calcapp-interview-test.cloudfunctions.net/api/api';
     tools.forEach(el => {
         const btntool = document.createElement('button');
         btntool.id = el.id;
@@ -83,17 +83,20 @@
     async function save() {
         setState()
         if (isCloudSave) {
-            (async () => {
-                const rawResponse = await fetch(apiUrl + '/save', {
+            fetch(apiUrl + '/save', {
                     method: 'POST',
                     headers: {
+                        'Accept': 'application/json',
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({ a, b, operator, result, uid })
-                });
-                const content = await rawResponse.json();
+            }).then(async response => {
+                alert(response.body)
+                const content = await response.json()
                 alert('Save on cloud success')
-            })();
+            }).catch(err => {
+                alert(err)
+            })
         } else {
             try {
                 const fs = require('fs');
